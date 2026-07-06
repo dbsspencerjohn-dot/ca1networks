@@ -48,6 +48,35 @@ DOWN:
 
 ## Part 2 - Ansible
 
+### Setup
+
+- `sudo apt install ansible` or `brew install ansible` - Install ansible  
+- Ensure `Networkca.pem` (or your key) has correct permissions: `chmod 400 Networkca.pem`
+- Confirm `host_file.ini` points at the current EC2 IP
+- `ansible -i host_file.ini web -m ping` - Test connectivity before running anything
+
+### Executing ansible
+
+Configure the server (install & enable Docker):
+
+- `ansible-playbook -i host_file.ini docker.yaml`
+
+Deploy the application (clone repo + docker compose up):
+
+- `ansible-playbook -i host_file.ini remote-clone.yaml`
+
+Re-sync inventory after a fresh `terraform apply` (new IP):
+
+- `./sync_deploy.sh`
+
+### Verify
+
+- `ansible -i host_file.ini web -m shell -a "systemctl is-enabled docker"` → should return `enabled`
+- `ansible -i host_file.ini web -m shell -a "systemctl is-active docker"` → should return `active`
+- `ansible -i host_file.ini web -m shell -a "docker ps"` → should show the running app container
+
+---
+
 ## Part 3 - Docker
 
 ### Structure
