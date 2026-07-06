@@ -13,5 +13,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Secure SSH Private Key
+        run: chmod 400 Networkca.pem
+
       - name: Run Ansible Playbook
         run: ansible-playbook -i host_file.ini docker.yaml
