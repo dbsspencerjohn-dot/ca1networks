@@ -9,11 +9,12 @@ Okeke Munachukwudinamma Praise - 20102055
 Spencer John - 20099070 
 
 **Repositories**:  
-[Main project repository - the only repository you need to run the project](https://github.com/dbsspencerjohn-dot/networking_ca1.git)  
+[Main project repository - the only repository needed to run the project](https://github.com/dbsspencerjohn-dot/ca1networks.git)  
 
 Auxiliary/intermediary repositories:  
-[Docker setup repository - fork of the app repository](git@github.com:alex-silverr/nithyanands-irish-visa-tracker.git)  
+[Docker setup repository - fork of the app repository](https://github.com/alex-silverr/nithyanands-irish-visa-tracker.git)  
 [Web app used for the demo - Nithyanantham's Irish visa tracker](https://github.com/nithyanands/irish-visa-tracker.git)  
+[Former setup repository - old main repository](https://github.com/dbsspencerjohn-dot/networking_ca1.git)
 
 ----
 
