@@ -88,6 +88,7 @@ This file sets up the service to run the container. It automates the arguments a
 - ``tty: true`` makes it possible to execute the bash/shell inside the container.
 - ``ports:`` specifies container ports connections to be accessed from outside.
   - ``8501:8501`` connects the internal port 8501 to external port 8501.
+- ``restart:always`` later edit: makes sure the container restarts after being interrupted.
 
 
 
