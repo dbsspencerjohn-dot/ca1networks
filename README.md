@@ -30,9 +30,6 @@ Auxiliary/intermediary repositories:
 
 ## Part 1 - Terraform
 
-### Setup
--# Part 1 - Terraform
-
 ## Purpose
 
 Terraform is used to automate the provisioning of the cloud infrastructure. Rather than manually creating the application server through the AWS Management Console, Terraform defines the infrastructure as code, allowing the EC2 instance and its associated networking resources to be created consistently and repeatedly.
