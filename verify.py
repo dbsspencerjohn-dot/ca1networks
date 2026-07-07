@@ -3,7 +3,7 @@ verify.py — run by GitHub Actions to confirm secrets and Supabase connection.
 Called before daily_sync.py to catch config problems early with clear output.
 """
 import os
-import sys
+import sys 
 
 print("=" * 50)
 print("Irish Visa Tracker — Environment Verification")
