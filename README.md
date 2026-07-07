@@ -30,21 +30,124 @@ Auxiliary/intermediary repositories:
 ## Part 1 - Terraform
 
 ### Setup
-- Install terraform
-- Install ansible
+-# Part 1 - Terraform
+
+## Purpose
+
+Terraform is used to automate the provisioning of the cloud infrastructure. Rather than manually creating the application server through the AWS Management Console, Terraform defines the infrastructure as code, allowing the EC2 instance and its associated networking resources to be created consistently and repeatedly.
+
+In this project, Terraform is installed on a management machine (either a manually created EC2 instance or a local computer). This management machine is responsible for provisioning the application server that will later be configured by Ansible and used to host the Docker container.
+
+---
+
+## Prerequisites
+
+Before running Terraform, complete the following setup on the management machine:
+
+- Install Terraform
 - Install AWS CLI
-- Create an IAM USER
-- Configure your AWS CLI with the IAM user Access ID and Access Key
-- Your AWS region when configuring AWS CLI should be us-east-1 ---> eu-east-1
+- Install Ansible
+- Create an AWS IAM user with programmatic access
+- Attach the required permissions (or `AdministratorAccess` for demonstration purposes)
+- Configure AWS CLI:
 
-### Executing terraform
-UP:
-- ``terraform init``
-- optional: ``terraform plan``
-- ``terraform apply``
+```bash
+aws configure
+```
 
-DOWN:
-- ``terraform destroy``
+Provide:
+
+- AWS Access Key ID
+- AWS Secret Access Key
+- Region: `eu-west-1`
+- Output format: `json`
+
+Verify the configuration:
+
+```bash
+aws sts get-caller-identity
+```
+
+---
+
+## Terraform Files
+
+| File | Purpose |
+|------|---------|
+| `main.tf` | Defines the AWS infrastructure resources. |
+| `variables.tf` | Stores configurable variables such as the AWS region, AMI ID, and instance type. |
+| `outputs.tf` | Displays important information after deployment, such as the EC2 public IP address. |
+
+---
+
+## Deploying the Infrastructure
+
+Initialize Terraform:
+
+```bash
+terraform init
+```
+
+Preview the execution plan (optional):
+
+```bash
+terraform plan
+```
+
+Provision the infrastructure:
+
+```bash
+terraform apply
+```
+
+Type:
+
+```text
+yes
+```
+
+when prompted.
+
+Terraform provisions the application EC2 instance together with the required networking resources, including the security group.
+
+After deployment completes, Terraform displays the public IP address of the newly created EC2 instance. This IP address is later used by Ansible to configure the server.
+
+---
+
+## Destroying the Infrastructure
+
+To remove all resources created by Terraform:
+
+```bash
+terraform destroy
+```
+
+Confirm by typing:
+
+```text
+yes
+```
+
+Terraform will safely remove every resource it previously created.
+
+---
+
+## Verification
+
+After deployment, verify that:
+
+- The EC2 instance is running in the AWS Management Console.
+- Terraform completed successfully without errors.
+- The EC2 public IP address is displayed in the Terraform outputs.
+- SSH access to the instance is successful.
+
+Example:
+
+```bash
+ssh -i Networkca.pem ubuntu@<EC2_Public_IP>
+```
+
+Once SSH connectivity is confirmed, the server is ready for configuration using Ansible.
 
 ## Part 2 - Ansible
 
@@ -123,45 +226,71 @@ MAINTENANCE:
 - Access container shell: ``docker exec -it visa-tracker sh``
 
 ## Part 4 - Git Actions
+
 ### Approach
-GitHub Actions rebuilds and redeploys the app on every push to `main`. No container registry is used — the runner SSHes into the EC2 instance and builds the image directly on the host, keeping the pipeline simple with fewer secrets/failure points.
-
-### Setup
-- Two repo secrets required (Settings → Secrets and variables → Actions):
-
-| Secret | Value |
-|---|---|
-| `EC2_HOST` | EC2 instance's current public IP |
-| `EC2_SSH_PRIVATE_KEY` | Private key matching the public key uploaded via Terraform |
-
-- Set via GitHub CLI:
-```bash
-gh secret set EC2_HOST --repo nithyanands/nsca1networks --body "<public-ip>"
-gh secret set EC2_SSH_PRIVATE_KEY --repo nithyanands/nsca1networks < ~/.ssh/id_rsa
-```
-- PAT must include the `workflow` scope (needed to push files under `.github/workflows/`)
+GitHub Actions automatically deploys the application whenever code is pushed to `main`. The workflow (`.github/workflows/Highactions.yml`) runs on a **self-hosted runner** and executes an Ansible playbook (`remote-clone.yaml`) that clones/updates the repository on the EC2 instance and rebuilds the container with Docker Compose. This keeps the entire deploy step — code retrieval and container rebuild — inside a single, consistent Ansible run each time, rather than splitting it across separate tools.
 
 ### Workflow file
-`.github/workflows/deploy.yml` — on push to `main`, connects to EC2 over SSH and runs:
-```bash
-cd ~/nsca1networks
-git pull origin main
-docker compose up --build -d
+`.github/workflows/Highactions.yml`:
+```yaml
+name: Application Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Secure SSH Private Key
+        run: chmod 400 Networkca.pem
+
+      - name: Run Ansible Playbook
+        run: ansible-playbook -i host_file.ini remote-clone.yaml
 ```
 
-### Verification
-```bash
-curl -I http://<public-ip>:8501
-# HTTP/1.1 200 OK
+### Ansible playbook used by the workflow
+`remote-clone.yaml`:
+```yaml
+---
+- hosts: web
+  become: yes
+
+  tasks:
+    - name: Clone or update repository
+      git:
+        repo: https://github.com/dbsspencerjohn-dot/ca1networks.git
+        dest: /home/ubuntu/app
+        version: main
+        update: yes
+
+    - name: Run Docker Compose
+      become_user: ubuntu
+      command: docker compose up -d --build
+      args:
+        chdir: /home/ubuntu/app
 ```
 
-### Related scripts
-- **`sync_deploy.sh`** — since no Elastic IP is used, the public IP changes on every stop/restart. This script pulls the current IP from `terraform output`, updates `host_file.ini`, and refreshes the `EC2_HOST` secret. Run manually after any event that changes the IP.
-- **`health_check.sh`** — manual diagnostic checking AWS infra, container/server, and app layers in one run. Used before demos or after suspected drift.
+### How it works:
+1. A commit is pushed to `main` repo
+2. The self-hosted runner (registered on a persistent machine 'VM' ) picks up the job immediately
+3. The workflow checks out the repository (including `Networkca.pem`, which is committed for this project) and sets its permissions to `400` so SSH will accept it.
+4. Ansible runs `remote-clone.yaml` against the EC2 instance listed in `host_file.ini`: it clones the repo on first run, or pulls the latest changes on subsequent runs, into `/home/ubuntu/app`.
+5. Also ansible playbook runs, Docker Compose rebuilds and restarts the container as the `ubuntu` user.
 
-### Key issues resolved
-1. PAT missing `workflow` scope — blocked pushes to `.github/workflows/`.
-2. `missing server host` — `EC2_HOST` secret hadn't been created yet.
-3. `detected dubious ownership` on `git pull` — repo cloned as `root` via Ansible; fixed with an ownership-fix task sequenced after clone, before build.
-4. `restart: always` not applied to a running container — Docker only applies restart-policy changes on recreation; fixed with `docker compose up -d --force-recreate`.
-5. No Elastic IP → public IP changes on restart — accepted as a documented limitation rather than an unresolved bug.
+### Setup dependencies
+- A self-hosted GitHub Actions runner registered against this repository, kept online
+- `host_file.ini` present, pointing at the current EC2 instance's Public IP
+- `Networkca.pem` present in the repository (used directly by the runner )
+- The EC2 instance's `ubuntu` user already added to the `docker` group (set up once, outside this workflow, during initial server configuration)
+- `docker-compose.yaml` includes `restart: always`, so the container also survives a full instance reboot, not just a redeploy
+
+### Known limitations (accepted for this project's scope)
+- **Self-hosted runner dependency**: this workflow only runs if the registered runner machine is online and reachable. If that machine is off, every push will fail to trigger a deployment.
+- **Private key committed to the repository**: `Networkca.pem` is committed and used directly by the workflow.
